@@ -1,0 +1,404 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Beyondex Firmware Updater (Update Mode)</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg-0: #05040a;
+        --bg-1: #0b0720;
+        --card: rgba(255, 255, 255, 0.06);
+        --border: rgba(255, 255, 255, 0.14);
+        --text: rgba(255, 255, 255, 0.92);
+        --muted: rgba(255, 255, 255, 0.70);
+        --muted-2: rgba(255, 255, 255, 0.55);
+        --ok: #54f0b1;
+        --warn: #ffd166;
+        --err: #ff5d7a;
+        --brand-1: #6f5cff;
+        --brand-2: #b55cff;
+        --brand-3: #ff7ab6;
+        --btn: #2c2a3a;
+        --btn-hover: #3a3850;
+        --primary: linear-gradient(135deg, var(--brand-1), var(--brand-2), var(--brand-3));
+        --shadow: 0 16px 50px rgba(0, 0, 0, 0.55);
+      }
+
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+        background:
+          radial-gradient(1200px 600px at 20% 20%, rgba(111, 92, 255, 0.35), transparent 55%),
+          radial-gradient(900px 500px at 70% 35%, rgba(181, 92, 255, 0.28), transparent 60%),
+          radial-gradient(900px 500px at 50% 80%, rgba(255, 122, 182, 0.22), transparent 60%),
+          linear-gradient(180deg, var(--bg-0), var(--bg-1));
+        color: var(--text);
+        min-height: 100vh;
+      }
+
+      .wrap { width: min(980px, calc(100% - 40px)); margin: 0 auto; padding: 28px 0 56px; }
+
+      .topbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 14px 16px;
+        border-radius: 16px;
+        background: rgba(0, 0, 0, 0.20);
+        border: 1px solid rgba(255, 255, 255, 0.10);
+        backdrop-filter: blur(10px);
+      }
+
+      .brand { display: flex; align-items: baseline; gap: 10px; font-weight: 650; letter-spacing: -0.02em; }
+      .brandMark {
+        width: 10px;
+        height: 10px;
+        border-radius: 999px;
+        background: var(--primary);
+        box-shadow: 0 0 24px rgba(111, 92, 255, 0.45);
+      }
+      .brandTitle { font-size: 14px; opacity: 0.92; }
+      .brandSub { font-size: 12px; opacity: 0.65; }
+
+      .hero {
+        margin-top: 22px;
+        padding: 26px 20px;
+        border-radius: 22px;
+        background: var(--card);
+        border: 1px solid var(--border);
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(14px);
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(28px, 4vw, 42px);
+        line-height: 1.05;
+        letter-spacing: -0.03em;
+      }
+
+      .subtitle {
+        margin-top: 10px;
+        color: var(--muted);
+        font-size: 15px;
+        line-height: 1.45;
+        max-width: 70ch;
+      }
+
+      .steps { margin-top: 18px; display: grid; grid-template-columns: 1fr; gap: 12px; }
+      .step {
+        display: grid;
+        grid-template-columns: 40px 1fr;
+        gap: 12px;
+        align-items: start;
+        padding: 14px 14px;
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+      }
+
+      .num {
+        width: 32px;
+        height: 32px;
+        border-radius: 999px;
+        display: grid;
+        place-items: center;
+        font-weight: 650;
+        background: rgba(255, 255, 255, 0.10);
+        border: 1px solid rgba(255, 255, 255, 0.16);
+      }
+
+      .stepTitle { font-weight: 650; letter-spacing: -0.01em; }
+      .stepText { margin-top: 4px; color: var(--muted); font-size: 14px; line-height: 1.45; }
+
+      .actions { margin-top: 16px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+
+      button {
+        appearance: none;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        background: var(--btn);
+        color: var(--text);
+        padding: 12px 14px;
+        border-radius: 14px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: transform 120ms ease, background 160ms ease, border-color 160ms ease, opacity 160ms ease;
+      }
+      button:hover { background: var(--btn-hover); transform: translateY(-1px); }
+      button:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
+      button:focus-visible { outline: 2px solid rgba(111, 92, 255, 0.8); outline-offset: 2px; }
+
+      .primary { border-color: rgba(255, 255, 255, 0.22); background: var(--primary); }
+      .primary:hover { filter: brightness(1.05); }
+
+      .linkBtn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 12px 14px;
+        border-radius: 14px;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        background: rgba(255, 255, 255, 0.06);
+        color: rgba(255, 255, 255, 0.92);
+        text-decoration: none;
+        font-size: 14px;
+        font-weight: 600;
+        transition: transform 120ms ease, background 160ms ease, border-color 160ms ease, opacity 160ms ease;
+      }
+      .linkBtn:hover { background: rgba(255, 255, 255, 0.10); transform: translateY(-1px); }
+      .linkBtn:focus-visible { outline: 2px solid rgba(111, 92, 255, 0.8); outline-offset: 2px; }
+
+      .statusRow {
+        margin-top: 14px;
+        padding: 12px 14px;
+        border-radius: 14px;
+        background: rgba(0, 0, 0, 0.22);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .status { display: flex; gap: 10px; align-items: center; min-height: 24px; }
+      .dot { width: 9px; height: 9px; border-radius: 999px; background: rgba(255, 255, 255, 0.35); box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.06); }
+      .dot.ok { background: var(--ok); box-shadow: 0 0 0 4px rgba(84, 240, 177, 0.12); }
+      .dot.warn { background: var(--warn); box-shadow: 0 0 0 4px rgba(255, 209, 102, 0.12); }
+      .dot.err { background: var(--err); box-shadow: 0 0 0 4px rgba(255, 93, 122, 0.12); }
+      .statusText { color: var(--muted); font-size: 13px; }
+      .statusText strong { color: var(--text); }
+
+      .details { margin-top: 16px; display: grid; grid-template-columns: 1fr; gap: 12px; }
+      .card {
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 18px;
+        padding: 14px 14px;
+        background: var(--card);
+        backdrop-filter: blur(14px);
+      }
+      .card h3 { margin: 0; font-size: 14px; letter-spacing: -0.01em; }
+      .card p, .card ul { margin: 8px 0 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+      .card ul { padding-left: 18px; }
+      code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+        font-size: 12px;
+        padding: 2px 6px;
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.10);
+      }
+
+      .smallPrint { margin-top: 14px; color: var(--muted-2); font-size: 12px; line-height: 1.45; }
+      .log {
+        margin-top: 10px;
+        padding: 10px 12px;
+        border-radius: 14px;
+        background: rgba(0, 0, 0, 0.24);
+        border: 1px solid rgba(255, 255, 255, 0.10);
+        color: rgba(255, 255, 255, 0.72);
+        white-space: pre-wrap;
+        max-height: 180px;
+        overflow: auto;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="topbar">
+        <div class="brand">
+          <span class="brandMark" aria-hidden="true"></span>
+          <div class="brandTitle">Fluid</div>
+          <div class="brandSub">Beyondex Firmware</div>
+        </div>
+        <div class="brandSub">Update Mode</div>
+      </div>
+
+      <div class="hero">
+        <h1>Put your Beyondex device in Update Mode</h1>
+        <div class="subtitle">
+          This page safely tells your device to restart into the built-in RP2040 update mode (BOOTSEL), so your computer can install new firmware.
+        </div>
+
+        <div class="steps" role="list">
+          <div class="step" role="listitem">
+            <div class="num">1</div>
+            <div>
+              <div class="stepTitle">Connect your device</div>
+              <div class="stepText">
+                Click <strong>Connect device</strong>. Your browser will show a device picker—choose “Beyondex HD Audio”.
+              </div>
+            </div>
+          </div>
+          <div class="step" role="listitem">
+            <div class="num">2</div>
+            <div>
+              <div class="stepTitle">Enter Update Mode</div>
+              <div class="stepText">
+                Click <strong>Enter Update Mode</strong>. The device will disconnect and reappear as the RP2040 BOOTSEL USB drive.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button id="btnConnect">Connect device</button>
+          <button id="btnBootsel" class="primary" disabled>Enter Update Mode</button>
+          <button id="btnDisconnect" disabled>Disconnect</button>
+          <a id="latestLink" class="linkBtn" href="#" target="_blank" rel="noopener noreferrer">Download latest firmware (.uf2)</a>
+        </div>
+
+        <div class="statusRow">
+          <div class="status">
+            <div id="statusDot" class="dot" aria-hidden="true"></div>
+            <div id="statusText" class="statusText"><strong>Not connected.</strong> Click “Connect device” to begin.</div>
+          </div>
+          <div class="statusText">Device filter: <code>VID=0xCAFE</code></div>
+        </div>
+
+        <div class="details">
+          <div class="card">
+            <h3>What happens next?</h3>
+            <ul>
+              <li>Your device reboots into RP2040 BOOTSEL mode.</li>
+              <li>Your computer shows a new USB drive (the updater).</li>
+              <li>You copy the provided <code>.uf2</code> firmware file to that drive.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>Having trouble?</h3>
+            <ul>
+              <li>Use Chrome/Edge on desktop (WebUSB is not supported in Safari/Firefox).</li>
+              <li>If the device picker is empty, unplug/replug the device and try again.</li>
+              <li>If you changed USB IDs in firmware, update the <code>VID</code> in this page.</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="smallPrint">
+          Privacy note: your browser will only allow access after you select a device in the picker. This page sends a single vendor request
+          (<code>bRequest=0x42</code>, <code>wValue=0xB007</code>) and does not read audio data.
+        </div>
+
+        <div class="log" id="log" aria-label="Log"></div>
+      </div>
+    </div>
+
+    <script>
+      // Must match firmware (`main.c`)
+      const VID = 0xCAFE;
+      const REQ_TYPE = "vendor";
+      const RECIPIENT = "device";
+      const REQ_BOOTSEL = 0x42;
+      const BOOTSEL_MAGIC = 0xB007;
+
+      // Latest tagged release UF2 asset (GitHub Releases “latest”)
+      // Update if repo name or UF2 asset name changes.
+      const LATEST_FIRMWARE_URL =
+        "https://github.com/FluidXR/picoamp-beyondex/releases/latest/download/beyondex_usb_speaker.uf2";
+
+      const $ = (id) => document.getElementById(id);
+      const logEl = $("log");
+      const statusDot = $("statusDot");
+      const statusText = $("statusText");
+
+      let dev = null;
+
+      function log(msg) {
+        const line = `[${new Date().toLocaleTimeString()}] ${msg}\n`;
+        logEl.textContent += line;
+        logEl.scrollTop = logEl.scrollHeight;
+      }
+
+      function setUiConnected(connected) {
+        $("btnBootsel").disabled = !connected;
+        $("btnDisconnect").disabled = !connected;
+      }
+
+      function setStatus(kind, headline, detail) {
+        statusDot.className = "dot" + (kind ? ` ${kind}` : "");
+        const h = headline ? `<strong>${headline}</strong>` : "";
+        const d = detail ? ` ${detail}` : "";
+        statusText.innerHTML = `${h}${d}`;
+      }
+
+      async function connect() {
+        if (!("usb" in navigator)) {
+          setStatus("err", "WebUSB not available.", "Please use Chrome or Edge.");
+          log("WebUSB not available in this browser.");
+          return;
+        }
+
+        setStatus("warn", "Waiting for device selection…", "Choose “Beyondex HD Audio” in the picker.");
+        dev = await navigator.usb.requestDevice({ filters: [{ vendorId: VID }] });
+        log(`Selected device: ${dev.productName || "(no product name)"} (${dev.manufacturerName || "unknown"})`);
+
+        await dev.open();
+        if (dev.configuration === null) {
+          await dev.selectConfiguration(1);
+        }
+
+        setUiConnected(true);
+        setStatus("ok", "Connected.", "Click “Enter Update Mode” to reboot into BOOTSEL.");
+        log("Device opened.");
+      }
+
+      async function rebootToBootsel() {
+        if (!dev) return;
+        setStatus("warn", "Entering Update Mode…", "Your device will disconnect briefly.");
+        log("Sending BOOTSEL reboot request...");
+        try {
+          await dev.controlTransferOut(
+            {
+              requestType: REQ_TYPE,
+              recipient: RECIPIENT,
+              request: REQ_BOOTSEL,
+              value: BOOTSEL_MAGIC,
+              index: 0,
+            },
+            new ArrayBuffer(0)
+          );
+          log("Request sent. Device should disconnect and re-enumerate as BOOTSEL.");
+          setStatus("ok", "Update Mode requested.", "Look for the RP2040 BOOTSEL drive on your computer.");
+        } catch (e) {
+          setStatus("err", "Couldn’t send the request.", "Try reconnecting and try again.");
+          log(`Control transfer failed: ${e && e.message ? e.message : String(e)}`);
+        }
+      }
+
+      async function disconnect() {
+        if (!dev) return;
+        try {
+          await dev.close();
+        } catch (_) {}
+        dev = null;
+        setUiConnected(false);
+        setStatus("", "Not connected.", "Click “Connect device” to begin.");
+        log("Disconnected.");
+      }
+
+      navigator.usb?.addEventListener("disconnect", (event) => {
+        if (dev && event.device === dev) {
+          log("Device disconnected (expected if rebooting to BOOTSEL).");
+          dev = null;
+          setUiConnected(false);
+          setStatus("ok", "Device disconnected.", "If you clicked Update Mode, this is expected.");
+        }
+      });
+
+      $("btnConnect").addEventListener("click", () => connect().catch((e) => log(String(e))));
+      $("btnBootsel").addEventListener("click", () => rebootToBootsel());
+      $("btnDisconnect").addEventListener("click", () => disconnect());
+      $("latestLink").href = LATEST_FIRMWARE_URL;
+
+      setUiConnected(false);
+      setStatus("", "Not connected.", "Click “Connect device” to begin.");
+    </script>
+  </body>
+</html>
+
+
