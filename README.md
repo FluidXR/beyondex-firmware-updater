@@ -24,9 +24,8 @@ If you change these in firmware, update them in `index.html`.
 
 ## Vercel deployment
 
-Deploy this folder (`webusb-updater/`) as a static site.
+Deploy this repo to Vercel as a static site.
 
-- Root: `webusb-updater`
 - Framework preset: **Other**
 - Build command: *(none)*
 - Output directory: *(root)*
@@ -34,6 +33,17 @@ Deploy this folder (`webusb-updater/`) as a static site.
 `vercel.json` sets:
 
 - `Permissions-Policy: usb=(self)`
+
+## Run locally (Node)
+
+WebUSB requires a secure context, and Chromium treats `http://localhost` as secure.
+
+```bash
+cd /Users/jdagdelen/Dropbox/Fluid/Beyondex/firmware/beyondex-webusb-updater
+npm run dev
+```
+
+Then open `http://localhost:8000` in Chrome/Edge.
 
 ## Latest firmware download link
 

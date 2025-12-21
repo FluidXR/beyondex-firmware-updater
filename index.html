@@ -63,6 +63,15 @@
       .brandTitle { font-size: 14px; opacity: 0.92; }
       .brandSub { font-size: 12px; opacity: 0.65; }
 
+      .footer {
+        margin-top: 18px;
+        text-align: center;
+        color: var(--muted-2);
+        font-size: 12px;
+        line-height: 1.4;
+        padding: 18px 0 0;
+      }
+
       .hero {
         margin-top: 22px;
         padding: 26px 20px;
@@ -89,6 +98,7 @@
       }
 
       .steps { margin-top: 18px; display: grid; grid-template-columns: 1fr; gap: 12px; }
+      .afterSteps { margin-top: 12px; }
       .step {
         display: grid;
         grid-template-columns: 40px 1fr;
@@ -135,6 +145,30 @@
       .primary { border-color: rgba(255, 255, 255, 0.22); background: var(--primary); }
       .primary:hover { filter: brightness(1.05); }
 
+      .cta {
+        position: relative;
+        padding: 14px 16px;
+        border-radius: 16px;
+        letter-spacing: -0.01em;
+      }
+      .ctaPulse {
+        box-shadow:
+          0 0 0 0 rgba(111, 92, 255, 0.35),
+          0 18px 60px rgba(0, 0, 0, 0.35);
+        animation: ctaPulse 2.2s ease-in-out infinite;
+      }
+      @keyframes ctaPulse {
+        0%   { box-shadow: 0 0 0 0 rgba(111, 92, 255, 0.35), 0 18px 60px rgba(0, 0, 0, 0.35); }
+        55%  { box-shadow: 0 0 0 10px rgba(111, 92, 255, 0.00), 0 18px 60px rgba(0, 0, 0, 0.35); }
+        100% { box-shadow: 0 0 0 0 rgba(111, 92, 255, 0.00), 0 18px 60px rgba(0, 0, 0, 0.35); }
+      }
+      .ctaIcon {
+        display: inline-block;
+        margin-right: 8px;
+        transform: translateY(-0.5px);
+        opacity: 0.95;
+      }
+
       .linkBtn {
         display: inline-flex;
         align-items: center;
@@ -152,6 +186,27 @@
       }
       .linkBtn:hover { background: rgba(255, 255, 255, 0.10); transform: translateY(-1px); }
       .linkBtn:focus-visible { outline: 2px solid rgba(111, 92, 255, 0.8); outline-offset: 2px; }
+
+      .textLink {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 2px;
+        border-radius: 10px;
+        color: rgba(255, 255, 255, 0.80);
+        text-decoration: underline;
+        text-underline-offset: 3px;
+        font-size: 13px;
+        font-weight: 600;
+        opacity: 0.9;
+        transition: opacity 160ms ease, transform 120ms ease, color 160ms ease;
+      }
+      .textLink:hover {
+        opacity: 1;
+        color: rgba(255, 255, 255, 0.95);
+        transform: translateY(-1px);
+      }
+      .textLink:focus-visible { outline: 2px solid rgba(111, 92, 255, 0.8); outline-offset: 2px; }
 
       .statusRow {
         margin-top: 14px;
@@ -194,35 +249,90 @@
       }
 
       .smallPrint { margin-top: 14px; color: var(--muted-2); font-size: 12px; line-height: 1.45; }
-      .log {
+
+      /* Modal (unsupported browser / insecure context) */
+      .modalBackdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.62);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 18px;
+        z-index: 1000;
+      }
+      .modalBackdrop.show { display: flex; }
+      html.modalOpen, body.modalOpen {
+        overflow: hidden;
+        height: 100%;
+      }
+      .modal {
+        width: min(760px, 100%);
+        border-radius: 26px;
+        background: rgba(15, 12, 28, 0.92);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        box-shadow: 0 24px 80px rgba(0, 0, 0, 0.60);
+        backdrop-filter: blur(16px);
+        padding: 26px 26px;
+      }
+      .modalHeader {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+      }
+      .modalIcon {
+        width: 48px;
+        height: 48px;
+        border-radius: 18px;
+        background: var(--primary);
+        box-shadow: 0 0 28px rgba(111, 92, 255, 0.35);
+        display: grid;
+        place-items: center;
+        color: rgba(255, 255, 255, 0.95);
+        font-weight: 750;
+      }
+      .modalTitle {
+        margin: 0;
+        font-size: 18px;
+        letter-spacing: -0.01em;
+      }
+      .modalBody {
         margin-top: 10px;
-        padding: 10px 12px;
-        border-radius: 14px;
-        background: rgba(0, 0, 0, 0.24);
-        border: 1px solid rgba(255, 255, 255, 0.10);
-        color: rgba(255, 255, 255, 0.72);
-        white-space: pre-wrap;
-        max-height: 180px;
-        overflow: auto;
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.5;
       }
     </style>
   </head>
   <body>
+    <div id="unsupportedModal" class="modalBackdrop" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <div class="modal">
+        <div class="modalHeader">
+          <div class="modalIcon" aria-hidden="true">!</div>
+          <h2 id="modalTitle" class="modalTitle">This browser can’t connect to USB devices</h2>
+        </div>
+        <div id="modalBody" class="modalBody">
+          To use the firmware updater, please open this page in <strong>Google Chrome</strong> or <strong>Microsoft Edge</strong> on desktop.
+        </div>
+      </div>
+    </div>
+
     <div class="wrap">
       <div class="topbar">
         <div class="brand">
           <span class="brandMark" aria-hidden="true"></span>
           <div class="brandTitle">Fluid</div>
-          <div class="brandSub">Beyondex Firmware</div>
+          <div class="brandSub">Project Beyondex</div>
         </div>
-        <div class="brandSub">Update Mode</div>
+        <div class="brandSub">Firmware Update Tool</div>
       </div>
 
       <div class="hero">
-        <h1>Put your Beyondex device in Update Mode</h1>
+        <h1>Update Project Beyondex Firmware</h1>
         <div class="subtitle">
-          This page safely tells your device to restart into the built-in RP2040 update mode (BOOTSEL), so your computer can install new firmware.
+          You can use this tool to update the firmware of your Project Beyondex device.
         </div>
+        <div class="subtitle"><strong style="color: var(--warn)">Warning: flashing non-Beyondex firmware (e.g. other uf2 files) will break this tool!</strong></div>
 
         <div class="steps" role="list">
           <div class="step" role="listitem">
@@ -239,17 +349,39 @@
             <div>
               <div class="stepTitle">Enter Update Mode</div>
               <div class="stepText">
-                Click <strong>Enter Update Mode</strong>. The device will disconnect and reappear as the RP2040 BOOTSEL USB drive.
+                Click <strong>Enter Update Mode</strong>. The device will disconnect and reappear as a USB drive called <code>RPI-RP2</code>.
               </div>
+            </div>
+          </div>
+          <div class="step" role="listitem">
+            <div class="num">3</div>
+            <div>
+              <div class="stepTitle">Copy Over the Firmware</div>
+              <div class="stepText">
+                Drag/copy <code>beyondex_usb_speaker.uf2</code> file into the `RPI-RP2` drive.
+              </div>
+              <div class="stepText"><strong>Warning: flashing non-Beyondex firmware (e.g. other uf2 files) will break this tool for your device!</strong></div>
             </div>
           </div>
         </div>
 
+        <div class="afterSteps">
+          <div class="card">
+            <h3>What happens next?</h3>
+            <ul>
+              <li>Your device will reboot.</li>
+              <li>Your computer shows a new audio device called "Beyondex HD Audio".</li>
+              <li>What are you still doing here? Go enjoy VR!</li>
+            </ul>
+          </div>
+        </div>
+
         <div class="actions">
-          <button id="btnConnect">Connect device</button>
+          <button id="btnConnect" class="primary cta ctaPulse"><span class="ctaIcon" aria-hidden="true">⟡</span>Connect device</button>
           <button id="btnBootsel" class="primary" disabled>Enter Update Mode</button>
           <button id="btnDisconnect" disabled>Disconnect</button>
           <a id="latestLink" class="linkBtn" href="#" target="_blank" rel="noopener noreferrer">Download latest firmware (.uf2)</a>
+          <a id="releasesLink" class="textLink" href="https://github.com/FluidXR/picoamp-beyondex/releases" target="_blank" rel="noopener noreferrer">Previous firmware versions</a>
         </div>
 
         <div class="statusRow">
@@ -257,34 +389,21 @@
             <div id="statusDot" class="dot" aria-hidden="true"></div>
             <div id="statusText" class="statusText"><strong>Not connected.</strong> Click “Connect device” to begin.</div>
           </div>
-          <div class="statusText">Device filter: <code>VID=0xCAFE</code></div>
         </div>
 
         <div class="details">
           <div class="card">
-            <h3>What happens next?</h3>
-            <ul>
-              <li>Your device reboots into RP2040 BOOTSEL mode.</li>
-              <li>Your computer shows a new USB drive (the updater).</li>
-              <li>You copy the provided <code>.uf2</code> firmware file to that drive.</li>
-            </ul>
-          </div>
-          <div class="card">
-            <h3>Having trouble?</h3>
-            <ul>
-              <li>Use Chrome/Edge on desktop (WebUSB is not supported in Safari/Firefox).</li>
-              <li>If the device picker is empty, unplug/replug the device and try again.</li>
-              <li>If you changed USB IDs in firmware, update the <code>VID</code> in this page.</li>
-            </ul>
-          </div>
+          <h3>Having trouble?</h3>
+          <ul>
+            <li>Use Chrome/Edge on desktop (WebUSB is not supported in Safari/Firefox).</li>
+            <li>If the device picker is empty, unplug/replug the device making sure the green LED inside is lit and try again.</li>
+            <li>For any other issues, email support@fluid.so</li>
+          </ul>
         </div>
+      </div>
 
-        <div class="smallPrint">
-          Privacy note: your browser will only allow access after you select a device in the picker. This page sends a single vendor request
-          (<code>bRequest=0x42</code>, <code>wValue=0xB007</code>) and does not read audio data.
-        </div>
+      <div class="footer">Copyright © 2026 Fluid Immersive, Inc.</div>
 
-        <div class="log" id="log" aria-label="Log"></div>
       </div>
     </div>
 
@@ -302,21 +421,33 @@
         "https://github.com/FluidXR/picoamp-beyondex/releases/latest/download/beyondex_usb_speaker.uf2";
 
       const $ = (id) => document.getElementById(id);
-      const logEl = $("log");
       const statusDot = $("statusDot");
       const statusText = $("statusText");
 
       let dev = null;
 
       function log(msg) {
-        const line = `[${new Date().toLocaleTimeString()}] ${msg}\n`;
-        logEl.textContent += line;
-        logEl.scrollTop = logEl.scrollHeight;
+        // Log UI intentionally removed for simplicity.
+        void msg;
       }
 
       function setUiConnected(connected) {
-        $("btnBootsel").disabled = !connected;
+        const btnConnect = $("btnConnect");
+        const btnBootsel = $("btnBootsel");
+
+        btnBootsel.disabled = !connected;
         $("btnDisconnect").disabled = !connected;
+
+        // Make the "next action" visually obvious:
+        // - Before connect: Connect is primary + pulsing
+        // - After connect: Update Mode becomes primary, connect becomes secondary
+        if (connected) {
+          btnConnect.classList.remove("primary", "ctaPulse");
+          btnBootsel.classList.add("primary");
+        } else {
+          btnConnect.classList.add("primary", "ctaPulse");
+          btnBootsel.classList.remove("primary");
+        }
       }
 
       function setStatus(kind, headline, detail) {
@@ -326,10 +457,27 @@
         statusText.innerHTML = `${h}${d}`;
       }
 
+      function showUnsupportedModal(messageHtml) {
+        const modal = $("unsupportedModal");
+        const body = $("modalBody");
+        if (messageHtml) body.innerHTML = messageHtml;
+        modal.classList.add("show");
+        document.documentElement.classList.add("modalOpen");
+        document.body.classList.add("modalOpen");
+
+        // Disable WebUSB actions (keep download link available)
+        $("btnConnect").disabled = true;
+        $("btnBootsel").disabled = true;
+        $("btnDisconnect").disabled = true;
+        setStatus("err", "Unsupported browser.", "Use Chrome or Edge to connect to your device.");
+        log("Unsupported environment: WebUSB not available.");
+      }
+
       async function connect() {
         if (!("usb" in navigator)) {
-          setStatus("err", "WebUSB not available.", "Please use Chrome or Edge.");
-          log("WebUSB not available in this browser.");
+          showUnsupportedModal(
+            'To use the firmware updater, please open this page in <strong>Google Chrome</strong> or <strong>Microsoft Edge</strong> on desktop.'
+          );
           return;
         }
 
@@ -397,6 +545,20 @@
 
       setUiConnected(false);
       setStatus("", "Not connected.", "Click “Connect device” to begin.");
+
+      // Proactive detection: show a friendly modal immediately for unsupported browsers/contexts.
+      // WebUSB requires a secure context + Chromium-based browser.
+      if (!window.isSecureContext) {
+        showUnsupportedModal(
+          "This page must be opened in a <strong>secure context</strong> (HTTPS). Please use the hosted link, or open it on <strong>http://localhost</strong> for local testing."
+        );
+      } else if (!("usb" in navigator)) {
+        showUnsupportedModal(
+          'To use the firmware updater, please open this page in <strong>Google Chrome</strong> or <strong>Microsoft Edge</strong> on desktop.'
+        );
+      } else {
+        // Supported environment
+      }
     </script>
   </body>
 </html>

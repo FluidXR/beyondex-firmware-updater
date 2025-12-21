@@ -1,0 +1,12 @@
+{
+  "name": "beyondex-webusb-updater",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "node server.mjs",
+    "dev:8000": "PORT=8000 node server.mjs"
+  }
+}
+
+
