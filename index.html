@@ -400,6 +400,43 @@
             <li>For any other issues, email support@fluid.so</li>
           </ul>
         </div>
+        <div id="tuningCard" class="card" style="display:none">
+          <h3>Live Tuning (WebUSB)</h3>
+          <p>Adjust these DSP parameters live. You can optionally save them to device flash so they persist after reboot.</p>
+          <div id="tuningUnsupported" class="smallPrint" style="display:none; color: var(--warn);">
+            Live Tuning isn’t supported by this firmware. Update your device to a version that includes Live Tuning, then reconnect.
+          </div>
+
+          <div style="margin-top: 10px; display: grid; grid-template-columns: 1fr; gap: 10px;">
+            <div>
+              <div style="display:flex; justify-content: space-between; align-items: baseline; gap: 10px;">
+                <div style="font-weight: 650;">Volume offset</div>
+                <div id="volOffsetVal" style="color: var(--muted); font-size: 13px;">2 dB</div>
+              </div>
+              <input id="volOffset" type="range" min="0" max="30" step="1" value="2" style="width:100%; margin-top: 6px;" />
+              <div class="smallPrint">Extra attenuation headroom applied on top of host USB volume control (helps prevent clipping).</div>
+            </div>
+
+            <div>
+              <div style="display:flex; justify-content: space-between; align-items: baseline; gap: 10px;">
+                <div style="font-weight: 650;">Bass EQ</div>
+                <div id="bassEqVal" style="color: var(--muted); font-size: 13px;">+0.0 dB</div>
+              </div>
+              <input id="bassEq" type="range" min="-120" max="120" step="5" value="0" style="width:100%; margin-top: 6px;" />
+              <div class="smallPrint">True low-shelf EQ gain at ~95 Hz. Boosting can clip—use “Volume offset” for extra headroom if needed.</div>
+            </div>
+          </div>
+
+          <div class="actions" style="margin-top: 12px;">
+            <button id="btnTuningRead">Read</button>
+            <button id="btnTuningApply">Apply (RAM)</button>
+            <button id="btnTuningSave" class="primary">Apply + Save</button>
+            <button id="btnTuningLoad">Load saved</button>
+            <button id="btnTuningReset">Reset defaults</button>
+            <button id="btnTuningResetClear">Reset + clear saved</button>
+          </div>
+          <div id="tuningStatus" class="smallPrint" style="margin-top: 8px; color: var(--muted);"></div>
+        </div>
       </div>
 
       <div class="footer">Copyright © 2026 Fluid Immersive, Inc.</div>
@@ -414,6 +451,16 @@
       const RECIPIENT = "device";
       const REQ_BOOTSEL = 0x42;
       const BOOTSEL_MAGIC = 0xB007;
+      // Live DSP tuning requests (must match firmware `main.c`)
+      const REQ_DSP_GET = 0x50;
+      const REQ_DSP_SET_RAM = 0x51;
+      const REQ_DSP_SAVE = 0x52;
+      const REQ_DSP_LOAD = 0x53;
+      const REQ_DSP_RESET = 0x54;
+
+      const DSP_MAGIC = 0x50534442; // 'BDSP'
+      const DSP_VERSION = 3;
+      const DSP_BLOB_SIZE = 40; // bytes (packed struct size)
 
       // Latest tagged release UF2 asset (GitHub Releases “latest”)
       // Update if repo name or UF2 asset name changes.
@@ -425,6 +472,39 @@
       const statusText = $("statusText");
 
       let dev = null;
+      let dspSupported = false;
+
+      // -----------------------------
+      // Live tuning blob encode/decode
+      // -----------------------------
+      function parseDspParams(buf) {
+        if (!(buf instanceof ArrayBuffer)) throw new Error("Expected ArrayBuffer");
+        if (buf.byteLength < DSP_BLOB_SIZE) throw new Error(`Blob too small (${buf.byteLength})`);
+        const dv = new DataView(buf);
+        const magic = dv.getUint32(0, true);
+        const version = dv.getUint16(4, true);
+        const size = dv.getUint16(6, true);
+        if (magic !== DSP_MAGIC) throw new Error("Bad magic");
+        if (version !== DSP_VERSION) throw new Error(`Unsupported version ${version}`);
+        if (size !== DSP_BLOB_SIZE) throw new Error(`Unexpected size ${size}`);
+        const flags = dv.getUint32(8, true);
+        const volumeOffsetSteps = dv.getInt16(12, true);
+        const bassEqGainDbX10 = dv.getInt16(14, true);
+        return { magic, version, size, flags, volumeOffsetSteps, bassEqGainDbX10 };
+      }
+
+      function packDspParams(obj) {
+        const buf = new ArrayBuffer(DSP_BLOB_SIZE);
+        const dv = new DataView(buf);
+        dv.setUint32(0, DSP_MAGIC, true);
+        dv.setUint16(4, DSP_VERSION, true);
+        dv.setUint16(6, DSP_BLOB_SIZE, true);
+        dv.setUint32(8, (obj.flags >>> 0) || 0, true);
+        dv.setInt16(12, obj.volumeOffsetSteps | 0, true);
+        dv.setInt16(14, Math.max(-120, Math.min(120, obj.bassEqGainDbX10 | 0)), true);
+        // rest reserved stays zero
+        return buf;
+      }
 
       function log(msg) {
         // Log UI intentionally removed for simplicity.
@@ -447,6 +527,14 @@
         } else {
           btnConnect.classList.add("primary", "ctaPulse");
           btnBootsel.classList.remove("primary");
+        }
+
+        // Live tuning controls (only show once connected; enable/disable based on probe)
+        const tuningCard = $("tuningCard");
+        if (tuningCard) tuningCard.style.display = connected ? "block" : "none";
+        if (!connected) {
+          setTuningSupported(false);
+          setTuningStatus("");
         }
       }
 
@@ -493,6 +581,9 @@
         setUiConnected(true);
         setStatus("ok", "Connected.", "Click “Enter Update Mode” to reboot into BOOTSEL.");
         log("Device opened.");
+
+        // Probe whether this firmware supports Live Tuning (don’t fail connect if not)
+        await probeDspSupportAndMaybeRead();
       }
 
       async function rebootToBootsel() {
@@ -529,6 +620,141 @@
         log("Disconnected.");
       }
 
+      function setTuningStatus(msg, kind) {
+        const el = $("tuningStatus");
+        if (!el) return;
+        el.textContent = msg || "";
+        el.style.color =
+          kind === "err" ? "var(--err)" :
+          kind === "ok" ? "var(--ok)" :
+          kind === "warn" ? "var(--warn)" : "var(--muted)";
+      }
+
+      function setTuningSupported(supported, reason) {
+        dspSupported = !!supported;
+        const unsupported = $("tuningUnsupported");
+        if (unsupported) {
+          unsupported.style.display = supported ? "none" : "block";
+          if (reason) unsupported.textContent = reason;
+        }
+        // Disable/enable controls
+        const ids = [
+          "volOffset",
+          "bassBoost",
+          "btnTuningRead",
+          "btnTuningApply",
+          "btnTuningSave",
+          "btnTuningLoad",
+          "btnTuningReset",
+          "btnTuningResetClear",
+        ];
+        for (const id of ids) {
+          const el = $(id);
+          if (!el) continue;
+          el.disabled = !supported;
+        }
+      }
+
+      function readUiDspParams() {
+        const vol = parseInt($("volOffset").value, 10);
+        const bassEq = parseInt($("bassEq").value, 10);
+        return { flags: 0, volumeOffsetSteps: vol, bassEqGainDbX10: bassEq };
+      }
+
+      function writeUiDspParams(p) {
+        $("volOffset").value = String(p.volumeOffsetSteps);
+        $("volOffsetVal").textContent = `${p.volumeOffsetSteps} dB`;
+        $("bassEq").value = String(p.bassEqGainDbX10);
+        $("bassEqVal").textContent = `${(p.bassEqGainDbX10 / 10).toFixed(1)} dB`;
+      }
+
+      async function dspGet() {
+        if (!dev) throw new Error("Not connected");
+        if (!dspSupported) throw new Error("Live Tuning not supported by this firmware");
+        const res = await dev.controlTransferIn(
+          { requestType: REQ_TYPE, recipient: RECIPIENT, request: REQ_DSP_GET, value: 0, index: 0 },
+          DSP_BLOB_SIZE
+        );
+        if (res.status !== "ok") throw new Error(`GET failed: ${res.status}`);
+        return parseDspParams(res.data.buffer.slice(res.data.byteOffset, res.data.byteOffset + res.data.byteLength));
+      }
+
+      async function dspSetRam(p) {
+        if (!dev) throw new Error("Not connected");
+        if (!dspSupported) throw new Error("Live Tuning not supported by this firmware");
+        const buf = packDspParams(p);
+        const res = await dev.controlTransferOut(
+          { requestType: REQ_TYPE, recipient: RECIPIENT, request: REQ_DSP_SET_RAM, value: 0, index: 0 },
+          buf
+        );
+        if (res.status !== "ok") throw new Error(`SET failed: ${res.status}`);
+      }
+
+      async function dspSave() {
+        if (!dev) throw new Error("Not connected");
+        if (!dspSupported) throw new Error("Live Tuning not supported by this firmware");
+        const res = await dev.controlTransferOut(
+          { requestType: REQ_TYPE, recipient: RECIPIENT, request: REQ_DSP_SAVE, value: 0, index: 0 },
+          new ArrayBuffer(0)
+        );
+        if (res.status !== "ok") throw new Error(`SAVE failed: ${res.status}`);
+      }
+
+      async function dspLoad() {
+        if (!dev) throw new Error("Not connected");
+        if (!dspSupported) throw new Error("Live Tuning not supported by this firmware");
+        const res = await dev.controlTransferOut(
+          { requestType: REQ_TYPE, recipient: RECIPIENT, request: REQ_DSP_LOAD, value: 0, index: 0 },
+          new ArrayBuffer(0)
+        );
+        if (res.status !== "ok") throw new Error(`LOAD failed: ${res.status}`);
+      }
+
+      async function dspReset(clearSaved) {
+        if (!dev) throw new Error("Not connected");
+        if (!dspSupported) throw new Error("Live Tuning not supported by this firmware");
+        const res = await dev.controlTransferOut(
+          { requestType: REQ_TYPE, recipient: RECIPIENT, request: REQ_DSP_RESET, value: clearSaved ? 1 : 0, index: 0 },
+          new ArrayBuffer(0)
+        );
+        if (res.status !== "ok") throw new Error(`RESET failed: ${res.status}`);
+      }
+
+      async function dspReadIntoUi() {
+        setTuningStatus("Reading from device…", "warn");
+        const p = await dspGet();
+        writeUiDspParams(p);
+        setTuningStatus("Read OK.", "ok");
+      }
+
+      async function probeDspSupportAndMaybeRead() {
+        // Start pessimistic: disable controls until proven supported
+        setTuningSupported(false, "Checking whether this firmware supports Live Tuning…");
+        try {
+          // Direct probe by attempting a GET; if it works, enable everything.
+          const res = await dev.controlTransferIn(
+            { requestType: REQ_TYPE, recipient: RECIPIENT, request: REQ_DSP_GET, value: 0, index: 0 },
+            DSP_BLOB_SIZE
+          );
+          if (res.status !== "ok" || !res.data) throw new Error("Not supported");
+          const p = parseDspParams(res.data.buffer.slice(res.data.byteOffset, res.data.byteOffset + res.data.byteLength));
+          setTuningSupported(true);
+          writeUiDspParams(p);
+          setTuningStatus("Ready.", "ok");
+        } catch (_) {
+          setTuningSupported(false, "Live Tuning isn’t supported by this firmware. Update your device and reconnect.");
+          setTuningStatus("", "");
+        }
+      }
+
+      async function dspApplyFromUi(persist) {
+        const p = readUiDspParams();
+        setTuningStatus(persist ? "Applying + saving…" : "Applying…", "warn");
+        await dspSetRam(p);
+        if (persist) await dspSave();
+        setTuningStatus(persist ? "Applied + saved." : "Applied (RAM).", "ok");
+      }
+
       navigator.usb?.addEventListener("disconnect", (event) => {
         if (dev && event.device === dev) {
           log("Device disconnected (expected if rebooting to BOOTSEL).");
@@ -542,6 +768,46 @@
       $("btnBootsel").addEventListener("click", () => rebootToBootsel());
       $("btnDisconnect").addEventListener("click", () => disconnect());
       $("latestLink").href = LATEST_FIRMWARE_URL;
+
+      // Live tuning UI bindings (elements are added below)
+      $("volOffset")?.addEventListener("input", (e) => {
+        $("volOffsetVal").textContent = `${parseInt(e.target.value, 10)} dB`;
+      });
+      $("bassEq")?.addEventListener("input", (e) => {
+        const v = parseInt(e.target.value, 10);
+        const sign = v > 0 ? "+" : "";
+        $("bassEqVal").textContent = `${sign}${(v / 10).toFixed(1)} dB`;
+      });
+      $("btnTuningRead")?.addEventListener("click", () => dspReadIntoUi().catch((e) => setTuningStatus(String(e?.message || e), "err")));
+      $("btnTuningApply")?.addEventListener("click", () => dspApplyFromUi(false).catch((e) => setTuningStatus(String(e?.message || e), "err")));
+      $("btnTuningSave")?.addEventListener("click", () => dspApplyFromUi(true).catch((e) => setTuningStatus(String(e?.message || e), "err")));
+      $("btnTuningLoad")?.addEventListener("click", async () => {
+        try {
+          setTuningStatus("Loading from flash…", "warn");
+          await dspLoad();
+          await dspReadIntoUi();
+        } catch (e) {
+          setTuningStatus(String(e?.message || e), "err");
+        }
+      });
+      $("btnTuningReset")?.addEventListener("click", async () => {
+        try {
+          setTuningStatus("Resetting to defaults…", "warn");
+          await dspReset(false);
+          await dspReadIntoUi();
+        } catch (e) {
+          setTuningStatus(String(e?.message || e), "err");
+        }
+      });
+      $("btnTuningResetClear")?.addEventListener("click", async () => {
+        try {
+          setTuningStatus("Resetting + clearing saved…", "warn");
+          await dspReset(true);
+          await dspReadIntoUi();
+        } catch (e) {
+          setTuningStatus(String(e?.message || e), "err");
+        }
+      });
 
       setUiConnected(false);
       setStatus("", "Not connected.", "Click “Connect device” to begin.");
