@@ -39,7 +39,7 @@ Deploy this repo to Vercel as a static site.
 WebUSB requires a secure context, and Chromium treats `http://localhost` as secure.
 
 ```bash
-cd /Users/jdagdelen/Dropbox/Fluid/Beyondex/firmware/beyondex-webusb-updater
+cd <install_dir>/beyondex-webusb-updater
 npm run dev
 ```
 
