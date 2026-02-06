@@ -250,6 +250,18 @@
 
       .smallPrint { margin-top: 14px; color: var(--muted-2); font-size: 12px; line-height: 1.45; }
 
+      .driverHelp {
+        margin-top: 14px;
+        padding: 16px 16px;
+        border-radius: 16px;
+        background: rgba(255, 209, 102, 0.08);
+        border: 1px solid rgba(255, 209, 102, 0.28);
+      }
+      .driverHelp h3 { margin: 0; color: var(--warn); }
+      .driverHelp p { margin: 8px 0 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+      .driverHelp ol { margin: 8px 0 0; padding-left: 20px; color: var(--muted); font-size: 13px; line-height: 1.7; }
+      .driverHelp .actions { margin-top: 12px; }
+
       /* Modal (unsupported browser / insecure context) */
       .modalBackdrop {
         position: fixed;
@@ -391,6 +403,31 @@
           </div>
         </div>
 
+        <div id="driverHelp" class="driverHelp" style="display:none">
+          <h3>Additional driver required</h3>
+          <p>
+            On Windows, the Beyondex device needs an additional USB driver before the web updater can put it into Update Mode.
+            You only need to do this once — after installing the latest firmware, future updates will work automatically.
+          </p>
+          <p>Use <strong>Zadig</strong> (a free, open-source USB driver tool) to install the driver:</p>
+          <ol>
+            <li>Download and run Zadig (no installation needed).</li>
+            <li>In the menu, click <strong>Options &rarr; List All Devices</strong>.</li>
+            <li>Select <strong>"Beyondex HD Audio"</strong> from the dropdown.</li>
+            <li>Make sure the target driver on the right says <strong>WinUSB</strong>.</li>
+            <li>Click <strong>"Replace Driver"</strong> (or "Install Driver").</li>
+            <li>Come back here and try <strong>"Enter Update Mode"</strong> again.</li>
+          </ol>
+          <p style="color: var(--muted-2); font-size: 12px;">
+            Note: audio playback through the device will be temporarily unavailable until the firmware update completes.
+            After flashing, unplug and replug the device — audio and future updates will both work normally.
+          </p>
+          <div class="actions">
+            <a class="linkBtn" href="https://zadig.akeo.ie/" target="_blank" rel="noopener noreferrer">Download Zadig (USB Driver Tool)</a>
+            <button id="btnRetryBootsel">Retry Enter Update Mode</button>
+          </div>
+        </div>
+
         <div class="details">
           <div class="card">
           <h3>Having trouble?</h3>
@@ -408,12 +445,13 @@
     </div>
 
     <script>
-      // Must match firmware (`main.c`)
+      // Must match firmware (`main.c` / `usb_descriptors.h`)
       const VID = 0xCAFE;
       const REQ_TYPE = "vendor";
       const RECIPIENT = "device";
       const REQ_BOOTSEL = 0x42;
       const BOOTSEL_MAGIC = 0xB007;
+      const VENDOR_INTERFACE = 2; // ITF_NUM_VENDOR in firmware
 
       // Latest tagged release UF2 asset (GitHub Releases “latest”)
       // Update if repo name or UF2 asset name changes.
@@ -490,8 +528,16 @@
           await dev.selectConfiguration(1);
         }
 
+        // Try to claim the vendor interface (needed on Windows; exists in newer firmware)
+        try {
+          await dev.claimInterface(VENDOR_INTERFACE);
+          log("Claimed vendor interface.");
+        } catch (_) {
+          log("Vendor interface not available (older firmware) — continuing.");
+        }
+
         setUiConnected(true);
-        setStatus("ok", "Connected.", "Click “Enter Update Mode” to reboot into BOOTSEL.");
+        setStatus("ok", "Connected.", "Click "Enter Update Mode" to reboot into BOOTSEL.");
         log("Device opened.");
       }
 
@@ -512,20 +558,23 @@
           );
           log("Request sent. Device should disconnect and re-enumerate as BOOTSEL.");
           setStatus("ok", "Update Mode requested.", "Look for the RP2040 BOOTSEL drive on your computer.");
+          $("driverHelp").style.display = "none";
         } catch (e) {
-          setStatus("err", "Couldn’t send the request.", "Try reconnecting and try again.");
+          setStatus("err", "Couldn't enter Update Mode.", "An additional USB driver may be required (see below).");
           log(`Control transfer failed: ${e && e.message ? e.message : String(e)}`);
+          // Show driver install help (primarily affects Windows with older firmware)
+          $("driverHelp").style.display = "block";
         }
       }
 
       async function disconnect() {
         if (!dev) return;
-        try {
-          await dev.close();
-        } catch (_) {}
+        try { await dev.releaseInterface(VENDOR_INTERFACE); } catch (_) {}
+        try { await dev.close(); } catch (_) {}
         dev = null;
         setUiConnected(false);
-        setStatus("", "Not connected.", "Click “Connect device” to begin.");
+        $("driverHelp").style.display = "none";
+        setStatus("", "Not connected.", "Click "Connect device" to begin.");
         log("Disconnected.");
       }
 
@@ -541,6 +590,7 @@
       $("btnConnect").addEventListener("click", () => connect().catch((e) => log(String(e))));
       $("btnBootsel").addEventListener("click", () => rebootToBootsel());
       $("btnDisconnect").addEventListener("click", () => disconnect());
+      $("btnRetryBootsel").addEventListener("click", () => rebootToBootsel());
       $("latestLink").href = LATEST_FIRMWARE_URL;
 
       setUiConnected(false);
