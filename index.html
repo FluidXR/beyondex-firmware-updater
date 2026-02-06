@@ -519,7 +519,7 @@
           return;
         }
 
-        setStatus("warn", "Waiting for device selection…", "Choose “Beyondex HD Audio” in the picker.");
+        setStatus("warn", "Waiting for device selection\u2026", "Choose \u201CBeyondex HD Audio\u201D in the picker.");
         dev = await navigator.usb.requestDevice({ filters: [{ vendorId: VID }] });
         log(`Selected device: ${dev.productName || "(no product name)"} (${dev.manufacturerName || "unknown"})`);
 
@@ -528,16 +528,20 @@
           await dev.selectConfiguration(1);
         }
 
-        // Try to claim the vendor interface (needed on Windows; exists in newer firmware)
-        try {
-          await dev.claimInterface(VENDOR_INTERFACE);
-          log("Claimed vendor interface.");
-        } catch (_) {
-          log("Vendor interface not available (older firmware) — continuing.");
+        // Claim the vendor interface if it exists (needed on Windows; present in newer firmware)
+        const hasVendorItf = dev.configuration &&
+          dev.configuration.interfaces.length > VENDOR_INTERFACE;
+        if (hasVendorItf) {
+          try {
+            await dev.claimInterface(VENDOR_INTERFACE);
+            log("Claimed vendor interface.");
+          } catch (_) {
+            log("Could not claim vendor interface — continuing.");
+          }
         }
 
         setUiConnected(true);
-        setStatus("ok", "Connected.", "Click "Enter Update Mode" to reboot into BOOTSEL.");
+        setStatus("ok", "Connected.", "Click \u201CEnter Update Mode\u201D to reboot into BOOTSEL.");
         log("Device opened.");
       }
 
@@ -574,7 +578,7 @@
         dev = null;
         setUiConnected(false);
         $("driverHelp").style.display = "none";
-        setStatus("", "Not connected.", "Click "Connect device" to begin.");
+        setStatus("", "Not connected.", "Click \u201CConnect device\u201D to begin.");
         log("Disconnected.");
       }
 
@@ -594,7 +598,7 @@
       $("latestLink").href = LATEST_FIRMWARE_URL;
 
       setUiConnected(false);
-      setStatus("", "Not connected.", "Click “Connect device” to begin.");
+      setStatus("", "Not connected.", "Click \u201CConnect device\u201D to begin.");
 
       // Proactive detection: show a friendly modal immediately for unsupported browsers/contexts.
       // WebUSB requires a secure context + Chromium-based browser.
