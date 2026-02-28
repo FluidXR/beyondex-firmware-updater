@@ -262,6 +262,70 @@
       .driverHelp ol { margin: 8px 0 0; padding-left: 20px; color: var(--muted); font-size: 13px; line-height: 1.7; }
       .driverHelp .actions { margin-top: 12px; }
 
+      /* Device settings panel */
+      .settingsPanel {
+        margin-top: 14px;
+        padding: 16px 16px;
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+      }
+      .settingsPanel h3 { margin: 0 0 12px; font-size: 14px; letter-spacing: -0.01em; }
+      .settingRow {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+      .settingLabel { color: var(--muted); font-size: 14px; }
+      .toggle {
+        position: relative;
+        width: 44px;
+        height: 24px;
+        flex-shrink: 0;
+      }
+      .toggle input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+        position: absolute;
+      }
+      .toggleTrack {
+        position: absolute;
+        inset: 0;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.14);
+        border: 1px solid rgba(255, 255, 255, 0.10);
+        cursor: pointer;
+        transition: background 200ms ease;
+      }
+      .toggleTrack::after {
+        content: "";
+        position: absolute;
+        left: 2px;
+        top: 2px;
+        width: 18px;
+        height: 18px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.85);
+        transition: transform 200ms ease;
+      }
+      .toggle input:checked + .toggleTrack {
+        background: var(--brand-1);
+        border-color: rgba(111, 92, 255, 0.4);
+      }
+      .toggle input:checked + .toggleTrack::after {
+        transform: translateX(20px);
+      }
+      .toggle input:disabled + .toggleTrack {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+      .toggle input:focus-visible + .toggleTrack {
+        outline: 2px solid rgba(111, 92, 255, 0.8);
+        outline-offset: 2px;
+      }
+
       /* Modal (unsupported browser / insecure context) */
       .modalBackdrop {
         position: fixed;
@@ -403,6 +467,17 @@
           </div>
         </div>
 
+        <div id="settingsPanel" class="settingsPanel" style="display:none">
+          <h3>Device Settings</h3>
+          <div class="settingRow">
+            <span class="settingLabel">Swap left / right audio channels</span>
+            <label class="toggle">
+              <input type="checkbox" id="chkChannelSwap" disabled />
+              <span class="toggleTrack"></span>
+            </label>
+          </div>
+        </div>
+
         <div id="driverHelp" class="driverHelp" style="display:none">
           <h3>Additional driver required</h3>
           <p>
@@ -452,6 +527,7 @@
       const REQ_BOOTSEL = 0x42;
       const BOOTSEL_MAGIC = 0xB007;
       const VENDOR_INTERFACE = 2; // ITF_NUM_VENDOR in firmware
+      const REQ_CHANNEL_SWAP = 0x44;
 
       // Latest tagged release UF2 asset (GitHub Releases “latest”)
       // Update if repo name or UF2 asset name changes.
@@ -469,22 +545,47 @@
         void msg;
       }
 
+      async function getChannelSwap() {
+        if (!dev) return 0;
+        try {
+          const result = await dev.controlTransferIn({
+            requestType: REQ_TYPE, recipient: RECIPIENT,
+            request: REQ_CHANNEL_SWAP, value: 0, index: 0
+          }, 1);
+          return result.data.getUint8(0);
+        } catch (_) {
+          return 0;
+        }
+      }
+
+      async function setChannelSwap(swapped) {
+        if (!dev) return;
+        try {
+          await dev.controlTransferOut({
+            requestType: REQ_TYPE, recipient: RECIPIENT,
+            request: REQ_CHANNEL_SWAP, value: swapped ? 1 : 0, index: 0
+          }, new ArrayBuffer(0));
+        } catch (e) {
+          log(`Channel swap set failed: ${e && e.message ? e.message : String(e)}`);
+        }
+      }
+
       function setUiConnected(connected) {
         const btnConnect = $("btnConnect");
         const btnBootsel = $("btnBootsel");
 
         btnBootsel.disabled = !connected;
         $("btnDisconnect").disabled = !connected;
+        $("chkChannelSwap").disabled = !connected;
+        $("settingsPanel").style.display = connected ? "block" : "none";
 
-        // Make the "next action" visually obvious:
-        // - Before connect: Connect is primary + pulsing
-        // - After connect: Update Mode becomes primary, connect becomes secondary
         if (connected) {
           btnConnect.classList.remove("primary", "ctaPulse");
           btnBootsel.classList.add("primary");
         } else {
           btnConnect.classList.add("primary", "ctaPulse");
           btnBootsel.classList.remove("primary");
+          $("chkChannelSwap").checked = false;
         }
       }
 
@@ -541,6 +642,10 @@
         }
 
         setUiConnected(true);
+
+        const swap = await getChannelSwap();
+        $("chkChannelSwap").checked = !!swap;
+
         setStatus("ok", "Connected.", "Click \u201CEnter Update Mode\u201D to reboot into BOOTSEL.");
         log("Device opened.");
       }
@@ -589,6 +694,12 @@
           setUiConnected(false);
           setStatus("ok", "Device disconnected.", "If you clicked Update Mode, this is expected.");
         }
+      });
+
+      $("chkChannelSwap").addEventListener("change", async (e) => {
+        const swapped = e.target.checked;
+        await setChannelSwap(swapped);
+        setStatus("ok", "Channel swap " + (swapped ? "enabled." : "disabled."), "Setting saved to device.");
       });
 
       $("btnConnect").addEventListener("click", () => connect().catch((e) => log(String(e))));
