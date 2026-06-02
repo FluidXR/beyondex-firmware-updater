@@ -539,6 +539,10 @@
       const statusText = $("statusText");
 
       let dev = null;
+      // True once we've claimed the vendor (WebUSB) interface present in newer
+      // firmware. When true, the WinUSB driver is already bound and the Zadig
+      // driver help is irrelevant — a BOOTSEL failure is something else.
+      let vendorClaimed = false;
 
       function log(msg) {
         // Log UI intentionally removed for simplicity.
@@ -630,11 +634,13 @@
         }
 
         // Claim the vendor interface if it exists (needed on Windows; present in newer firmware)
+        vendorClaimed = false;
         const hasVendorItf = dev.configuration &&
           dev.configuration.interfaces.length > VENDOR_INTERFACE;
         if (hasVendorItf) {
           try {
             await dev.claimInterface(VENDOR_INTERFACE);
+            vendorClaimed = true;
             log("Claimed vendor interface.");
           } catch (_) {
             log("Could not claim vendor interface — continuing.");
@@ -669,10 +675,18 @@
           setStatus("ok", "Update Mode requested.", "Look for the RP2040 BOOTSEL drive on your computer.");
           $("driverHelp").style.display = "none";
         } catch (e) {
-          setStatus("err", "Couldn't enter Update Mode.", "An additional USB driver may be required (see below).");
           log(`Control transfer failed: ${e && e.message ? e.message : String(e)}`);
-          // Show driver install help (primarily affects Windows with older firmware)
-          $("driverHelp").style.display = "block";
+          // The Zadig driver is only needed on older firmware that lacks the
+          // vendor (WebUSB) interface. If we claimed that interface, WinUSB is
+          // already bound — don't send the user on a driver-install detour.
+          if (vendorClaimed) {
+            setStatus("err", "Couldn't enter Update Mode.", "Please disconnect, reconnect, and try again.");
+            $("driverHelp").style.display = "none";
+          } else {
+            setStatus("err", "Couldn't enter Update Mode.", "An additional USB driver may be required (see below).");
+            // Show driver install help (primarily affects Windows with older firmware)
+            $("driverHelp").style.display = "block";
+          }
         }
       }
 
@@ -681,6 +695,7 @@
         try { await dev.releaseInterface(VENDOR_INTERFACE); } catch (_) {}
         try { await dev.close(); } catch (_) {}
         dev = null;
+        vendorClaimed = false;
         setUiConnected(false);
         $("driverHelp").style.display = "none";
         setStatus("", "Not connected.", "Click \u201CConnect device\u201D to begin.");
